@@ -6,9 +6,16 @@ This project demonstrates how to use Connext from Rust on a Linux x64 system.
 
 This project is a simple example to get you started with Connext and Rust.
 
-It includes a basic setup and a demonstration of the functionality, and highlights the need for better integrations. Nonetheless this functionality is included
+It includes a basic setup and a demonstration of the functionality, and highlights the need for better integrations such as
+- Entity lifetime management
+- Automatic FFI type generation, also for custom IDL types.
+- Wrapping of C types such as `char*`
+- Support for other architectures
+
+Nonetheless this functionality is included
 - Automatic rtiddsgen invocation
 - Type support library build
+- Link configuration automation
 
 ## Prerequisites
 
