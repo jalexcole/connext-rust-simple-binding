@@ -25,6 +25,21 @@ struct DDS_InstanceHandle_t {
 }
 #[repr(C)]
 #[allow(non_camel_case_types)]
+struct DDS_DataReader {
+    _private: [u8; 0],
+}
+#[repr(C)]
+#[allow(non_camel_case_types)]
+struct HelloWorldDataReader {
+    _private: [u8; 0],
+}
+#[repr(C)]
+#[allow(non_camel_case_types)]
+struct DDS_SampleInfo {
+    _private: [u8; 0],
+}
+#[repr(C)]
+#[allow(non_camel_case_types)]
 struct HelloWorld {
     msg: *mut i8,
 }
@@ -61,6 +76,17 @@ extern "C" {
         handle: *const DDS_InstanceHandle_t,
     ) -> i32;
     fn HelloWorldTypeSupport_delete_data(sample: *mut HelloWorld) -> i32;
+
+    fn DDS_DomainParticipant_lookup_datareader_by_name(
+        participant: *mut DDS_DomainParticipant,
+        datareader_full_name: *const i8,
+    ) -> *mut DDS_DataReader;
+    fn HelloWorldDataReader_narrow(writer: *mut DDS_DataReader) -> *mut HelloWorldDataReader;
+    fn HelloWorldDataReader_take_next_sample(
+        reader: *mut HelloWorldDataReader,
+        received_data: *mut HelloWorld,
+        sample_info: *mut DDS_SampleInfo,
+    ) -> i32;
     fn DDS_DomainParticipant_delete_contained_entities(
         participant: *mut DDS_DomainParticipant,
     ) -> i32;
@@ -72,11 +98,36 @@ extern "C" {
     static DDS_HANDLE_NIL: DDS_InstanceHandle_t;
 }
 
-fn main() {
+#[derive(Debug)]
+enum Mode {
+    Publisher,
+    Subscriber,
+}
+
+fn usage(appname: &str) {
+    eprintln!("Usage: {appname} <pub|sub>");
+}
+
+fn main() -> Result<(), String> {
+    let mode = {
+        let args: Vec<String> = std::env::args().collect();
+        if args.len() < 2 {
+            usage(&args[0]);
+            return Err("Invalid arguments".to_string());
+        }
+        match args[1].as_str() {
+            "pub" => Mode::Publisher,
+            "sub" => Mode::Subscriber,
+            _ => {
+                usage(&args[0]);
+                return Err("Invalid mode".to_string());
+            }
+        }
+    };
+
     let factory = unsafe { DDS_DomainParticipantFactory_get_instance() };
-    dbg!("factory address: {:?}", factory);
-    if factory == std::ptr::null_mut() {
-        panic!("Failed to get DomainParticipantFactory instance");
+    if factory.is_null() {
+        return Err("Failed to get DomainParticipantFactory instance".to_string());
     }
 
     let type_name = std::ffi::CString::new("HelloWorld").unwrap();
@@ -88,7 +139,7 @@ fn main() {
         )
     };
     if retcode != DDS_RETCODE_OK {
-        panic!("Failed to register type: {retcode}");
+        return Err(format!("Failed to register type: {retcode}"));
     }
 
     let participant_name = std::ffi::CString::new("MyParticipantLibrary::MyParticipant").unwrap();
@@ -98,68 +149,100 @@ fn main() {
             participant_name.as_ptr(),
         )
     };
-    dbg!("participant address: {:?}", participant);
-    if participant == std::ptr::null_mut() {
-        panic!("Failed to create DomainParticipant");
-    }
-
-    let datawriter_name = std::ffi::CString::new("MyPublisher::MyWriter").unwrap();
-    let datawriter = unsafe {
-        HelloWorldDataWriter_narrow(DDS_DomainParticipant_lookup_datawriter_by_name(
-            participant,
-            datawriter_name.as_ptr(),
-        ))
-    };
-    dbg!("datawriter address: {:?}", datawriter);
-    if datawriter == std::ptr::null_mut() {
-        panic!("Failed to create DataWriter");
+    if participant.is_null() {
+        return Err("Failed to create DomainParticipant".to_string());
     }
 
     let helloworld = unsafe { HelloWorldTypeSupport_create_data() };
-    dbg!("helloworld address: {:?}", helloworld);
-    if helloworld == std::ptr::null_mut() {
-        panic!("Failed to create Sample");
+    if helloworld.is_null() {
+        return Err("Failed to create Sample".to_string());
     }
 
-    for idx in 1..=10 {
-        let msg = format!("Hello world, I said {idx} times");
-        for (i, &byte) in msg.as_bytes().iter().enumerate() {
-            unsafe {
-                *((*helloworld).msg.add(i)) = byte as i8;
+    match mode {
+        Mode::Publisher => {
+            let datawriter_name = std::ffi::CString::new("MyPublisher::MyWriter").unwrap();
+            let datawriter = unsafe {
+                HelloWorldDataWriter_narrow(DDS_DomainParticipant_lookup_datawriter_by_name(
+                    participant,
+                    datawriter_name.as_ptr(),
+                ))
+            };
+            if datawriter.is_null() {
+                return Err("Failed to lookup DataWriter".to_string());
+            }
+
+            for idx in 1..=10 {
+                let msg = format!("Hello world, I said {idx} times");
+                for (i, &byte) in msg.as_bytes().iter().enumerate() {
+                    unsafe {
+                        *((*helloworld).msg.add(i)) = byte as i8;
+                    }
+                }
+
+                let retcode =
+                    unsafe { HelloWorldDataWriter_write(datawriter, helloworld, &DDS_HANDLE_NIL) };
+                if retcode != DDS_RETCODE_OK {
+                    return Err(format!("Failed to write sample: {retcode}"));
+                }
+                println!("Sample sent: {msg}");
+
+                std::thread::sleep(std::time::Duration::from_secs(2));
             }
         }
+        Mode::Subscriber => {
+            let datareader_name = std::ffi::CString::new("MySubscriber::MyReader").unwrap();
+            let datareader = unsafe {
+                HelloWorldDataReader_narrow(DDS_DomainParticipant_lookup_datareader_by_name(
+                    participant,
+                    datareader_name.as_ptr(),
+                ))
+            };
+            if datareader.is_null() {
+                return Err("Failed to lookup DataReader".to_string());
+            }
 
-        let retcode =
-            unsafe { HelloWorldDataWriter_write(datawriter, helloworld, &DDS_HANDLE_NIL) };
-        if retcode != DDS_RETCODE_OK {
-            panic!("Failed to write sample: {retcode}");
+            loop {
+                /* We dont want to replicate DDS_SampleInfo, lets reserve enough memory for it */
+                let unused_sample_info = [0u8; 4096];
+                let retcode = unsafe {
+                    HelloWorldDataReader_take_next_sample(
+                        datareader,
+                        helloworld,
+                        &unused_sample_info as *const u8 as *mut DDS_SampleInfo,
+                    )
+                };
+                if retcode == DDS_RETCODE_OK {
+                    let c_str = unsafe { std::ffi::CStr::from_ptr((*helloworld).msg) };
+                    let str_slice = c_str.to_str().unwrap();
+                    println!("Sample received: {}", str_slice);
+                }
+            }
         }
-        println!("Sent: {msg}");
-
-        std::thread::sleep(std::time::Duration::from_secs(2));
     }
 
     // Teardown
     {
         let retcode = unsafe { HelloWorldTypeSupport_delete_data(helloworld) };
         if retcode != DDS_RETCODE_OK {
-            panic!("Failed to delete sample: {retcode}");
+            return Err(format!("Failed to delete sample: {retcode}"));
         }
 
         let retcode = unsafe { DDS_DomainParticipant_delete_contained_entities(participant) };
         if retcode != DDS_RETCODE_OK {
-            panic!("Failed to delete contained entities: {retcode}");
+            return Err(format!("Failed to delete contained entities: {retcode}"));
         }
 
         let retcode =
             unsafe { DDS_DomainParticipantFactory_delete_participant(factory, participant) };
         if retcode != DDS_RETCODE_OK {
-            panic!("Failed to delete participant: {retcode}");
+            return Err(format!("Failed to delete participant: {retcode}"));
         }
 
         let retcode = unsafe { DDS_DomainParticipantFactory_finalize_instance() };
         if retcode != DDS_RETCODE_OK {
-            panic!("FFailed to finalize participant factory: {retcode}");
+            return Err(format!("Failed to finalize participant factory: {retcode}"));
         }
     }
+
+    Ok(())
 }
