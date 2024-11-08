@@ -1,16 +1,36 @@
-<dds>
-    <qos_library name="MyLibrary">
-        <qos_profile name="MyProfile" is_default_qos="true">
-            <participant_qos>
-                <property>
-                    <value>
-                        <element>
-                            <name>dds.transport.UDPv4.builtin.parent.message_size_max</name>
-                            <value>65535</value>
-                        </element>
-                    </value>
-                </property>
-            </participant_qos>
+<dds xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:noNamespaceSchemaLocation="http://community.rti.com/schema/7.3.0/rti_dds_profiles.xsd"
+     version="7.3.0">
+
+    <!-- QoS Profiles -->
+    <qos_library name="MyQosLibrary">
+        <qos_profile name="DefaultProfile">
+            <!-- QoS settings can be defined here -->
         </qos_profile>
     </qos_library>
+
+    <!-- Domain Library -->
+    <domain_library name="MyDomainLibrary" >
+        <domain name="MyDomain" domain_id="0">
+            <register_type name="HelloWorld" type_ref="HelloWorld" />
+            <topic name="MyTopic" register_type_ref="HelloWorld"/>
+        </domain>
+    </domain_library>
+
+    <!-- Participant Library -->
+    <domain_participant_library name="MyParticipantLibrary">
+        <domain_participant name="MyParticipant" domain_ref="MyDomainLibrary::MyDomain">
+            <publisher name="MyPublisher">
+                <data_writer name="MyWriter" topic_ref="MyTopic">
+                    <datawriter_qos base_name="MyQosLibrary::DefaultProfile"/>
+                </data_writer>
+            </publisher>
+            <subscriber name="MySubscriber">
+                <data_reader name="MyReader" topic_ref="MyTopic">
+                    <datareader_qos base_name="MyQosLibrary::DefaultProfile"/>
+                </data_reader>
+            </subscriber>
+        </domain_participant>
+    </domain_participant_library>
+
 </dds>
