@@ -27,8 +27,8 @@ Nonetheless this functionality is included
 
 1. Clone the repository:
     ```sh
-    git clone ssh://git@bitbucket.rti.com:7999/~bgarcia/connext-from-rust.git
-    cd connext-from-rust/hello
+    git clone https://github.com/rticommunity/connext-rust-simple-binding.git
+    cd connext-rust-simple-binding
     ```
 
 2. Build the project:
