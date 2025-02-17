@@ -13,3 +13,6 @@ cc = "1.0"
 
 [profile.dev]
 rpath = true
+
+[workspace]
+members = ["rticonnext-sys"]
