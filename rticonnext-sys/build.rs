@@ -8,13 +8,13 @@ fn main() {
         false => "",
     };
     
-    // let ndds_home = env::var("NDDSHome")
-    //     .expect("NDDSHome environment variable is not set");
+    let ndds_home = env::var("NDDSHome")
+        .expect("NDDSHome environment variable is not set");
 
-    // println!("NDDSHome is: {}", ndds_home);
+    println!("NDDSHome is: {}", ndds_home);
 
-    let nddshome = "/Applications/rti_connext_dds-6.1.1";
-    let include_path = format!("{}/include", nddshome);
+    
+    let include_path = format!("{}/include", ndds_home);
     // Adding subdirectories
     let include_ndds = format!("{}/ndds", include_path);
     let include_osapi = format!("{}/osapi", include_ndds);
@@ -62,7 +62,7 @@ fn main() {
 
     println!(
         "cargo:rustc-link-search=native={}/lib/{}",
-        nddshome, rti_architecture
+        ndds_home, rti_architecture
     );
     // TODO: While static compilation is preferred in rust, there needs to be a config flag to allow for dynamic linking.
     println!("cargo:rustc-link-lib=nddsc{debug_enabled}");
