@@ -2,8 +2,11 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    let debug = "d"; // TODO: Check if debug symbols are being used. This will be neccessary to switch between bindings.
 
+    let debug_enabled = match cfg!(debug_assertions) {
+        true => "d",
+        false => "",
+    };
     
     // let ndds_home = env::var("NDDSHome")
     //     .expect("NDDSHome environment variable is not set");
@@ -19,11 +22,6 @@ fn main() {
     let include_dds_c = format!("{}/dds_c", include_ndds);
     let bindings = bindgen::Builder::default()
         .header(format!("{}/ndds/ndds_c.h", include_path))
-        .raw_line("#[allow(non_camel_case_types)]")
-        .raw_line("#[allow(non_snake_case)]")
-        .raw_line("#[allow(non_upper_case_globals)]")
-        .raw_line("#[allow(dead_code)]")
-        .raw_line("#[allow(improper_ctypes)]")
         .clang_arg("-DRTI_UNIX")
         .clang_arg(format!("-I{}", include_path))
         .clang_arg(format!("-I{}", include_ndds))
@@ -44,33 +42,43 @@ fn main() {
 
     let target = env::var("TARGET").unwrap();
 
-    let natives = if target.contains("apple") && target.contains("x86") {
-        "x64Darwin17clang9.0"
-    } else if target.contains("linux") && target.contains("x86") {
-        "x64Linux4gcc7.3.0"
-    } else {
-        panic!("Unsupported target: {}", target)
+
+    // https://doc.rust-lang.org/beta/rustc/platform-support.html
+    let rti_architecture = match target.as_str() {
+        "aarch64-apple-darwin" => "arm64Darwin20clang12.0",
+        "x86_64-apple-darwin" => "x64Darwin17clang9.0",
+        "x86_64-unknown-linux-gnu" =>  "x64Linux4gcc7.3.0", // TODO: Only supports redhat. Will need to support all linux distros.
+        "i686-unknown-linux-gnu" => todo!(),
+        "aarch64-unknown-linux-gnu" => todo!(),
+        "x86_64-pc-windows-msvc" => todo!(),
+        "x86_64-pc-windows-gnu" => todo!(),
+        "aarch64-pc-windows-msvc"=> todo!(),
+
+        // Other Archetectures
+        _ => panic!("Unsupported target: {}", target),
     };
+
+    
 
     println!(
         "cargo:rustc-link-search=native={}/lib/{}",
-        nddshome, natives
+        nddshome, rti_architecture
     );
     // TODO: While static compilation is preferred in rust, there needs to be a config flag to allow for dynamic linking.
-    println!("cargo:rustc-link-lib=static=nddscz{debug}");
-    println!("cargo:rustc-link-lib=static=nddscorez{debug}");
-    println!("cargo:rustc-link-lib=static=nddsmetpz{debug}");
-    println!("cargo:rustc-link-lib=static=nddssecurityz{debug}");
-    println!("cargo:rustc-link-lib=static=nddstransporttcpz{debug}");
-    println!("cargo:rustc-link-lib=static=rticonnextmsgcz{debug}");
-    println!("cargo:rustc-link-lib=static=rtiddsconnectorluaz{debug}");
-    println!("cargo:rustc-link-lib=static=rtidlcz{debug}");
-    println!("cargo:rustc-link-lib=static=rtimonitoringz{debug}");
-    println!("cargo:rustc-link-lib=static=rtipersistenceservicez{debug}");
-    println!("cargo:rustc-link-lib=static=rtirecordingservicecorez{debug}");
-    println!("cargo:rustc-link-lib=static=rtiroutingservicez{debug}");
-    println!("cargo:rustc-link-lib=static=rtirsinfrastructurez{debug}");
-    println!("cargo:rustc-link-lib=static=rtisqlitez{debug}");
-    println!("cargo:rustc-link-lib=static=rtistorageutilsz{debug}");
-    println!("cargo:rustc-link-lib=static=rtixml2z{debug}");
+    println!("cargo:rustc-link-lib=nddsc{debug_enabled}");
+    println!("cargo:rustc-link-lib=nddscore{debug_enabled}");
+    println!("cargo:rustc-link-lib=nddsmetp{debug_enabled}");
+    println!("cargo:rustc-link-lib=nddssecurity{debug_enabled}");
+    println!("cargo:rustc-link-lib=nddstransporttcp{debug_enabled}");
+    println!("cargo:rustc-link-lib=rticonnextmsgc{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtiddsconnectorlua{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtidlc{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtimonitoring{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtipersistenceservice{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtirecordingservicecore{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtiroutingservice{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtirsinfrastructure{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtisqlite{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtistorageutils{debug_enabled}");
+    println!("cargo:rustc-link-lib=rtixml2{debug_enabled}");
 }
